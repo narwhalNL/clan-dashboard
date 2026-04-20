@@ -545,7 +545,7 @@ def update_visuals(stage_val, sel_tags):
                     range=[y_mpg.min()*0.78, y_mpg.max()*1.22], tickfont=dict(size=9,color=MUTED2)),
         xaxis=dict(range=[x_win_lo, x_win_hi]),
         shapes=shapes)
-    if single: fig1.update_traces(connectgaps=False)
+    if single: fig1.update_traces(connectgaps=False, selector=dict(type="scatter"))
     apply_x_m(fig1, x)
 
     # Chart 2: Fame + Missed
@@ -571,7 +571,7 @@ def update_visuals(stage_val, sel_tags):
                     range=fame_rng, tickfont=dict(size=9,color=MUTED2)),
         xaxis=dict(range=[x_win_lo, x_win_hi]),
         shapes=shapes)
-    if single: fig2.update_traces(connectgaps=False)
+    if single: fig2.update_traces(connectgaps=False, selector=dict(type="scatter"))
     apply_x_m(fig2, x)
 
     return donuts, fig1, fig2
