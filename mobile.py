@@ -506,7 +506,7 @@ def update_visuals(stage_val, sel_tags):
 
     if single:
         tag    = sel_tags[0]
-        p_df   = df_raw[df_raw["player tag"]==tag].set_index("stage").reindex(STAGES).fillna(0)
+        p_df   = df_raw[df_raw["player tag"]==tag].set_index("stage").reindex(STAGES)
         y_act  = (p_df["decks used"]/MAX_PLAYER*100).round(1)
         y_mpg  = (p_df["fame"]/p_df["decks used"].replace(0,1)).round(1)
         y_miss = (MAX_PLAYER-p_df["decks used"]).clip(lower=0)
@@ -545,6 +545,7 @@ def update_visuals(stage_val, sel_tags):
                     range=[y_mpg.min()*0.78, y_mpg.max()*1.22], tickfont=dict(size=9,color=MUTED2)),
         xaxis=dict(range=[x_win_lo, x_win_hi]),
         shapes=shapes)
+    if single: fig1.update_traces(connectgaps=False)
     apply_x_m(fig1, x)
 
     # Chart 2: Fame + Missed
@@ -570,6 +571,7 @@ def update_visuals(stage_val, sel_tags):
                     range=fame_rng, tickfont=dict(size=9,color=MUTED2)),
         xaxis=dict(range=[x_win_lo, x_win_hi]),
         shapes=shapes)
+    if single: fig2.update_traces(connectgaps=False)
     apply_x_m(fig2, x)
 
     return donuts, fig1, fig2
