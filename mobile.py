@@ -523,9 +523,9 @@ def update_visuals(stage_val, sel_tags):
     fig1 = base_fig_mobile()
     fig1.add_trace(go.Scatter(x=x, y=list(y_mpg), mode="lines+markers+text",
         line=dict(color=CH_ORANGE,width=2), marker=dict(size=5,color=CH_ORANGE),
-        text=[str(int(v)) for v in y_mpg], textposition="bottom center",
+        text=[str(int(v)) if pd.notna(v) else "" for v in y_mpg], textposition="bottom center",
         textfont=dict(color=CH_ORANGE, size=9),
-        customdata=[f"{int(v):,}" for v in y_mpg],
+        customdata=[f"{int(v):,}" if pd.notna(v) else "" for v in y_mpg],
         hovertemplate="<b>Medals/Game</b>: %{customdata}<extra></extra>",
         yaxis="y2", showlegend=False))
     fig1.add_trace(go.Scatter(x=x, y=list(y_act), mode="lines+markers+text",
@@ -551,16 +551,16 @@ def update_visuals(stage_val, sel_tags):
     # Chart 2: Fame + Missed
     fig2 = base_fig_mobile()
     fig2.add_trace(go.Bar(x=x, y=list(y_miss), marker_color=CH_RED, opacity=0.8,
-        text=[str(int(v)) for v in y_miss], textposition="outside",
+        text=[str(int(v)) if pd.notna(v) else "" for v in y_miss], textposition="outside",
         textfont=dict(color=CH_RED, size=9),
-        customdata=[f"{int(v):,}" for v in y_miss],
+        customdata=[f"{int(v):,}" if pd.notna(v) else "" for v in y_miss],
         hovertemplate="<b>Missed</b>: %{customdata}<extra></extra>",
         yaxis="y1", showlegend=False))
     fig2.add_trace(go.Scatter(x=x, y=list(y_fame), mode="lines+markers+text",
         line=dict(color=CH_TEAL,width=2), marker=dict(size=5,color=CH_TEAL),
-        text=[_nl_k(v) for v in y_fame], textposition="top center",
+        text=[_nl_k(v) if pd.notna(v) else "" for v in y_fame], textposition="top center",
         textfont=dict(color=CH_TEAL, size=9),
-        customdata=[f"{int(v):,}" for v in y_fame],
+        customdata=[f"{int(v):,}" if pd.notna(v) else "" for v in y_fame],
         hovertemplate="<b>Fame</b>: %{customdata}<extra></extra>",
         yaxis="y2", showlegend=False))
     fig2.update_layout(
