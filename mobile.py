@@ -46,6 +46,10 @@ ACTIVE_TAGS = set(LG_DECKS.keys())
 def _nl_int(v): return f"{int(round(v)):,}".replace(",",".")
 def _nl_dec(v): return f"{v:.1f}".replace(".",",")
 def _nl_pct(v): return f"{v:.1f}".replace(".",",") + "%"
+def _nl_k(v):
+    v = int(v)
+    if v >= 1000: return f"{v/1000:.1f}".replace(".",",") + "k"
+    return str(v)
 
 def _player_records(tag):
     p = df_raw[df_raw["player tag"] == tag].copy()
@@ -176,10 +180,8 @@ app = Dash(__name__, external_stylesheets=[
     dbc.themes.BOOTSTRAP,
     "https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&display=swap",
 ], suppress_callback_exceptions=True)
-
-server = app.server
-
 app.title = "Clan War · Mobile"
+server = app.server  # required for gunicorn
 app.index_string = f"""<!DOCTYPE html>
 <html><head>{{%metas%}}<title>{{%title%}}</title>{{%favicon%}}{{%css%}}
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -187,6 +189,7 @@ app.index_string = f"""<!DOCTYPE html>
 <body>{{%app_entry%}}<footer>{{%config%}}{{%scripts%}}{{%renderer%}}</footer></body></html>"""
 
 TILE = {"background": CARD, "border": f"1px solid {BORDER}", "borderRadius": "10px", "padding": "10px 12px"}
+TILE_CHART = {"background": CARD, "border": f"1px solid {BORDER}", "borderRadius": "10px", "padding": "8px 4px 4px 4px"}
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 def m_donut(label, value, color, pct, rec=None):
@@ -201,7 +204,7 @@ def m_donut(label, value, color, pct, rec=None):
                                              "fontWeight": "900", "color": color,
                                              "textAlign": "center", "lineHeight": "1.1",
                                              "padding": "0 2px"})])]),
-        html.Div(f"Rec: {rec}" if rec else "", style={"fontSize": "0.5rem", "color": MUTED, "textAlign": "center"}),
+        html.Div(rec if rec else "", style={"fontSize": "0.55rem", "color": MUTED2, "textAlign": "center", "lineHeight": "1.2", "marginTop": "2px"}),
     ], style={"background": CARD_KPI, "borderRadius": "8px", "border": f"1px solid {BORDER}",
               "borderTop": f"2px solid {color}", "padding": "8px 4px", "textAlign": "center"})
 
@@ -210,11 +213,11 @@ def base_fig_mobile():
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor=CARD2,
         font=dict(family=FONT, color=TEXT, size=10),
-        margin=dict(l=36, r=36, t=10, b=44),
+        margin=dict(l=22, r=22, t=8, b=28),
         hovermode="x unified", autosize=True,
         hoverlabel=dict(bgcolor="#1a2535", bordercolor=BORDER,
                         font=dict(color=TEXT, size=11, family=FONT)),
-        showlegend=False,
+        showlegend=False, dragmode="pan",
     )
     return fig
 
@@ -258,7 +261,8 @@ app.layout = html.Div(style={
         html.Div([
             html.Div("⚔ CLAN WAR", style={"fontFamily": TITLEF, "fontSize": "1rem",
                      "fontWeight": "900", "color": C_FAME, "letterSpacing": "0.05em"}),
-            html.Div("Clan #CGLPJ9", style={"fontSize": "0.6rem", "color": MUTED2, "marginTop": "1px"}),
+            html.Div(id="m-viewing-label", children="Clan #CGLPJ9",
+                     style={"fontSize": "0.6rem", "color": MUTED2, "marginTop": "1px"}),
         ]),
         html.Div([
             html.Span(f"{len(STAGES)}", style={"fontFamily": TITLEF, "color": CH_TEAL, "fontSize": "0.78rem"}),
@@ -288,7 +292,7 @@ app.layout = html.Div(style={
     # ── TAB 1: VISUALS ─────────────────────────────────────────────────────────
     html.Div(id="m-tab-visuals", style={
         "flex": "1", "minHeight": "0", "overflowY": "auto", "overflowX": "hidden",
-        "padding": "10px 10px 16px", "display": "block",
+        "padding": "10px 6px 16px", "display": "block",
     }, children=[
         # Persistent filters at top
         html.Div(style={"display": "flex", "gap": "8px", "marginBottom": "10px"}, children=[
@@ -320,25 +324,51 @@ app.layout = html.Div(style={
         ]),
 
         # Segment 2: Activity & Medals/Game chart
-        html.Div(style={**TILE, "marginBottom":"10px"}, children=[
-            html.Div(style={"display":"flex","gap":"12px","marginBottom":"4px"}, children=[
+        html.Div(style={**TILE_CHART, "marginBottom":"10px"}, children=[
+            html.Div(style={"display":"flex","gap":"12px","marginBottom":"2px","padding":"0 8px"}, children=[
                 html.Span("● Activity %",  style={"fontSize":"0.65rem","color":CH_BLUE,"fontWeight":"600"}),
                 html.Span("● Medals/Game", style={"fontSize":"0.65rem","color":CH_ORANGE,"fontWeight":"600"}),
             ]),
             dcc.Graph(id="m-chart-activity",
-                      config={"displayModeBar":False,"responsive":True},
-                      style={"height":"32vh"}),
+                      config={"displayModeBar":False,"responsive":True,"scrollZoom":True},
+                      style={"height":"36vh","width":"100%"}),
         ]),
 
         # Segment 3: Fame & Missed Attacks chart
-        html.Div(style={**TILE}, children=[
-            html.Div(style={"display":"flex","gap":"12px","marginBottom":"4px"}, children=[
+        html.Div(style={**TILE_CHART, "marginBottom":"10px"}, children=[
+            html.Div(style={"display":"flex","gap":"12px","marginBottom":"2px","padding":"0 8px"}, children=[
                 html.Span("● Missed",   style={"fontSize":"0.65rem","color":CH_RED, "fontWeight":"600"}),
                 html.Span("● Fame",     style={"fontSize":"0.65rem","color":CH_TEAL,"fontWeight":"600"}),
             ]),
             dcc.Graph(id="m-chart-fame",
-                      config={"displayModeBar":False,"responsive":True},
-                      style={"height":"32vh"}),
+                      config={"displayModeBar":False,"responsive":True,"scrollZoom":True},
+                      style={"height":"36vh","width":"100%"}),
+        ]),
+
+        # Segment 4: Raw data table (CHANGE 3)
+        html.Div(style={**TILE}, children=[
+            html.Div("RAW DATA", style={"fontSize":"0.6rem","color":MUTED2,
+                     "letterSpacing":"0.1em","fontWeight":"700","marginBottom":"8px"}),
+            html.Div(style={"overflowY":"auto","overflowX":"auto","maxHeight":"45vh"}, children=[
+                dash_table.DataTable(
+                    id="m-raw-dt", data=[], columns=[
+                        {"name":"Stage","id":"stage"},
+                        {"name":"Player","id":"player name"},
+                        {"name":"Medals","id":"fame"},
+                        {"name":"Decks","id":"decks used"},
+                        {"name":"M/Deck","id":"medals_per_deck"},
+                    ],
+                    page_action="none", sort_action="native",
+                    style_table={"width":"100%","overflowX":"auto"},
+                    style_cell={**T_CELL, "fontSize":"0.7rem","padding":"4px 6px"},
+                    style_cell_conditional=[
+                        {"if":{"column_id":"player name"}, "textAlign":"left", "maxWidth":"110px",
+                         "overflow":"hidden","textOverflow":"ellipsis"},
+                    ],
+                    style_header={**T_HEADER,"fontSize":"0.58rem"},
+                    style_data_conditional=[{"if":{"row_index":"odd"},"backgroundColor":"#0a1322"}],
+                ),
+            ]),
         ]),
     ]),
 
@@ -393,7 +423,7 @@ def switch_tab(n_v, n_p):
     show_vis  = triggered == "m-tab-vis"
     tab_data  = "visuals" if show_vis else "players"
     vis_style    = {"flex":"1","minHeight":"0","overflowY":"auto","overflowX":"hidden",
-                    "padding":"10px 10px 16px","display":"block" if show_vis else "none"}
+                    "padding":"10px 6px 16px","display":"block" if show_vis else "none"}
     play_style   = {"flex":"1","minHeight":"0","overflowY":"auto","overflowX":"hidden",
                     "padding":"10px 10px 16px","display":"none" if show_vis else "block"}
     btn_active   = {**_BTN, "padding":"10px 4px",
@@ -445,13 +475,14 @@ def update_visuals(stage_val, sel_tags):
         ls_act    = ls_d/MAX_PLAYER*100
         ls_miss   = max(0, MAX_PLAYER-ls_d)
         pr        = _player_records(tag)
+        nm_kpi = latest_name.get(tag, tag)
         donuts = [
-            m_donut("Clanmedals",    _nl_int(ls_f_clan), CH_TEAL,   ls_f_clan/180000*100, _nl_int(RECORD_FAME)),
-            m_donut("Medals/Game",   _nl_dec(ls_mpg),    CH_ORANGE, ls_mpg/225*100,       _nl_dec(pr.get("mpg",RECORD_MPG))),
+            m_donut("Clanmedals",    _nl_int(ls_f_clan), CH_TEAL,   ls_f_clan/180000*100, f"Clan record = {_nl_int(RECORD_FAME)}"),
+            m_donut("Medals/Game",   _nl_dec(ls_mpg),    CH_ORANGE, ls_mpg/225*100,       f"{nm_kpi} best = {_nl_dec(pr.get('mpg',RECORD_MPG))}"),
             m_donut("Players",       "1",                "#9b59b6", 100),
-            m_donut("Activity",      _nl_pct(ls_act),    CH_BLUE,   ls_act,               _nl_pct(pr.get("activity",RECORD_ACTIVITY))),
-            m_donut("Medals/Player", _nl_int(ls_f),      "#fe6c35", ls_f/3600*100,        _nl_int(pr.get("fame",RECORD_MPP))),
-            m_donut("Missed Atks",   _nl_int(ls_miss),   CH_RED,    ls_miss/MAX_PLAYER*100,str(pr.get("miss",RECORD_MISS))),
+            m_donut("Activity",      _nl_pct(ls_act),    CH_BLUE,   ls_act,               f"{nm_kpi} best = {_nl_pct(pr.get('activity',RECORD_ACTIVITY))}"),
+            m_donut("Medals/Player", _nl_int(ls_f),      "#fe6c35", ls_f/3600*100,        f"{nm_kpi} best = {_nl_int(pr.get('fame',RECORD_MPP))}"),
+            m_donut("Missed Atks",   _nl_int(ls_miss),   CH_RED,    ls_miss/MAX_PLAYER*100,f"{nm_kpi} best = {pr.get('miss',RECORD_MISS)}"),
         ]
     else:
         ls_d   = ls["decks used"].sum(); ls_f = ls["fame"].sum()
@@ -461,12 +492,12 @@ def update_visuals(stage_val, sel_tags):
         ls_mpp = (ls_f/ls_p) if ls_p else 0
         ls_miss = MAX_CLAN-ls_d
         donuts = [
-            m_donut("Clanmedals",    _nl_int(ls_f),   CH_TEAL,   ls_f/180000*100,   _nl_int(RECORD_FAME)),
-            m_donut("Medals/Game",   _nl_dec(ls_mpg), CH_ORANGE, ls_mpg/225*100,    _nl_dec(RECORD_MPG)),
+            m_donut("Clanmedals",    _nl_int(ls_f),   CH_TEAL,   ls_f/180000*100,   f"Clan record = {_nl_int(RECORD_FAME)}"),
+            m_donut("Medals/Game",   _nl_dec(ls_mpg), CH_ORANGE, ls_mpg/225*100,    f"Clan record = {_nl_dec(RECORD_MPG)}"),
             m_donut("Players",       str(ls_p),       "#9b59b6", ls_p/50*100),
-            m_donut("Activity",      _nl_pct(ls_act), CH_BLUE,   ls_act,            _nl_pct(RECORD_ACTIVITY)),
-            m_donut("Medals/Player", _nl_int(ls_mpp), "#fe6c35", ls_mpp/3600*100,   _nl_int(RECORD_MPP)),
-            m_donut("Missed Atks",   _nl_int(ls_miss),CH_RED,    ls_miss/MAX_CLAN*100,str(RECORD_MISS)),
+            m_donut("Activity",      _nl_pct(ls_act), CH_BLUE,   ls_act,            f"Clan record = {_nl_pct(RECORD_ACTIVITY)}"),
+            m_donut("Medals/Player", _nl_int(ls_mpp), "#fe6c35", ls_mpp/3600*100,   f"Clan record = {_nl_int(RECORD_MPP)}"),
+            m_donut("Missed Atks",   _nl_int(ls_miss),CH_RED,    ls_miss/MAX_CLAN*100,f"Clan record = {RECORD_MISS}"),
         ]
 
     # Chart data
@@ -490,32 +521,44 @@ def update_visuals(stage_val, sel_tags):
 
     # Chart 1: Activity + Medals/Game
     fig1 = base_fig_mobile()
-    fig1.add_trace(go.Scatter(x=x, y=list(y_mpg), mode="lines+markers",
+    fig1.add_trace(go.Scatter(x=x, y=list(y_mpg), mode="lines+markers+text",
         line=dict(color=CH_ORANGE,width=2), marker=dict(size=5,color=CH_ORANGE),
+        text=[str(int(v)) for v in y_mpg], textposition="bottom center",
+        textfont=dict(color=CH_ORANGE, size=9),
         customdata=[f"{int(v):,}" for v in y_mpg],
         hovertemplate="<b>Medals/Game</b>: %{customdata}<extra></extra>",
         yaxis="y2", showlegend=False))
-    fig1.add_trace(go.Scatter(x=x, y=list(y_act), mode="lines+markers",
+    fig1.add_trace(go.Scatter(x=x, y=list(y_act), mode="lines+markers+text",
         line=dict(color=CH_BLUE,width=2), marker=dict(size=5,color=CH_BLUE),
+        text=[f"{v:.0f}%" for v in y_act], textposition="top center",
+        textfont=dict(color=CH_BLUE, size=9),
         customdata=[f"{v:.1f}".replace(".",",")+"%" for v in y_act],
         hovertemplate="<b>Activity</b>: %{customdata}<extra></extra>",
         yaxis="y1", showlegend=False))
+    # Window: last 16 stages by default
+    x_win_lo = max(0, len(STAGES) - 16) - 0.5
+    x_win_hi = len(STAGES) - 0.5
     fig1.update_layout(
         yaxis=dict(range=act_rng, ticksuffix="%", gridcolor=BORDER, showgrid=True,
                    zeroline=False, tickfont=dict(size=9,color=MUTED2)),
         yaxis2=dict(overlaying="y", side="right", showgrid=False, zeroline=False,
                     range=[y_mpg.min()*0.78, y_mpg.max()*1.22], tickfont=dict(size=9,color=MUTED2)),
+        xaxis=dict(range=[x_win_lo, x_win_hi]),
         shapes=shapes)
     apply_x_m(fig1, x)
 
     # Chart 2: Fame + Missed
     fig2 = base_fig_mobile()
     fig2.add_trace(go.Bar(x=x, y=list(y_miss), marker_color=CH_RED, opacity=0.8,
+        text=[str(int(v)) for v in y_miss], textposition="outside",
+        textfont=dict(color=CH_RED, size=9),
         customdata=[f"{int(v):,}" for v in y_miss],
         hovertemplate="<b>Missed</b>: %{customdata}<extra></extra>",
         yaxis="y1", showlegend=False))
-    fig2.add_trace(go.Scatter(x=x, y=list(y_fame), mode="lines+markers",
+    fig2.add_trace(go.Scatter(x=x, y=list(y_fame), mode="lines+markers+text",
         line=dict(color=CH_TEAL,width=2), marker=dict(size=5,color=CH_TEAL),
+        text=[_nl_k(v) for v in y_fame], textposition="top center",
+        textfont=dict(color=CH_TEAL, size=9),
         customdata=[f"{int(v):,}" for v in y_fame],
         hovertemplate="<b>Fame</b>: %{customdata}<extra></extra>",
         yaxis="y2", showlegend=False))
@@ -525,6 +568,7 @@ def update_visuals(stage_val, sel_tags):
                    zeroline=True, zerolinecolor=BORDER, tickfont=dict(size=9,color=MUTED2)),
         yaxis2=dict(overlaying="y", side="right", showgrid=False, zeroline=False,
                     range=fame_rng, tickfont=dict(size=9,color=MUTED2)),
+        xaxis=dict(range=[x_win_lo, x_win_hi]),
         shapes=shapes)
     apply_x_m(fig2, x)
 
@@ -592,6 +636,83 @@ def update_players(n_p, n_4, n_l, sort_by, stored_mode):
             _btn_style("last",   mode, "r"))
 
 
+
+# ── Player selected from Players table → switch to Visuals + set filter ────────
+@app.callback(
+    Output("m-player-filter",         "value"),
+    Output("m-tab-visuals",           "style", allow_duplicate=True),
+    Output("m-tab-players-content",   "style", allow_duplicate=True),
+    Output("m-tab-vis",               "style", allow_duplicate=True),
+    Output("m-tab-players",           "style", allow_duplicate=True),
+    Output("m-tab",                   "data",  allow_duplicate=True),
+    Input("m-player-dt",              "active_cell"),
+    State("m-player-dt",              "data"),
+    State("m-player-filter",          "value"),
+    prevent_initial_call=True,
+)
+def on_table_click(active_cell, data, current):
+    if not active_cell or active_cell.get("column_id") != "Name" or not data:
+        return (no_update,) * 6
+    idx = active_cell["row"]
+    if idx >= len(data): return (no_update,) * 6
+    tag = data[idx].get("Tag")
+    if not tag: return (no_update,) * 6
+    # Toggle: clicking same player clears filter
+    new_val = [] if current == [tag] else [tag]
+    vis_style  = {"flex":"1","minHeight":"0","overflowY":"auto","overflowX":"hidden",
+                  "padding":"10px 6px 16px","display":"block"}
+    play_style = {"flex":"1","minHeight":"0","overflowY":"auto","overflowX":"hidden",
+                  "padding":"10px 10px 16px","display":"none"}
+    btn_active   = {**_BTN, "padding":"10px 4px",
+                    "borderBottom":f"2px solid {CH_TEAL}", "color":CH_TEAL,
+                    "background":"transparent", "borderRadius":"0",
+                    "borderTop":"none","borderLeft":"none",
+                    "borderRight":f"1px solid {BORDER}", "marginBottom":"-2px"}
+    btn_inactive = {**_BTN, "padding":"10px 4px",
+                    "borderBottom":"2px solid transparent", "color":MUTED2,
+                    "background":"transparent", "borderRadius":"0",
+                    "border":"none", "marginBottom":"-2px"}
+    return new_val, vis_style, play_style, btn_active, btn_inactive, "visuals"
+
+
+# ── Header "Viewing" label (reflects selected player) ─────────────────────────
+@app.callback(
+    Output("m-viewing-label", "children"),
+    Input("m-player-filter",  "value"),
+)
+def update_viewing(sel_tags):
+    if sel_tags and len(sel_tags) == 1:
+        nm = latest_name.get(sel_tags[0], sel_tags[0])
+        return f"Viewing: {nm}"
+    return "Clan #CGLPJ9"
+
+
+
+# ── Raw data table (Tab 1 bottom) — respects stage + player filters ──────────
+@app.callback(
+    Output("m-raw-dt", "data"),
+    Input("m-stage-select",  "value"),
+    Input("m-player-filter", "value"),
+)
+def update_raw(stage_val, sel_tags):
+    sel_stages = sorted(stage_val, key=stage_key) if stage_val else STAGES
+    df = df_raw[df_raw["stage"].isin(sel_stages)].copy()
+    if sel_tags and len(sel_tags) == 1:
+        df = df[df["player tag"] == sel_tags[0]]
+        df["medals_per_deck"] = (df["fame"] / df["decks used"].replace(0, 1)).round(1)
+        df = df.sort_values("stage", key=lambda x: x.map(stage_key), ascending=False)
+        return df[["stage","player name","fame","decks used","medals_per_deck"]].to_dict("records")
+    # Clan aggregate per stage
+    g = df.groupby("stage").agg(fame=("fame","sum"),
+                                 decks=("decks used","sum")).reset_index()
+    g["medals_per_deck"] = (g["fame"] / g["decks"].replace(0,1)).round(1)
+    g["player name"]     = "HollandseNieuwe"
+    g = g.rename(columns={"decks":"decks used"})
+    g["_k"] = g["stage"].map(stage_key)
+    g = g.sort_values("_k", ascending=False).drop(columns="_k")
+    return g[["stage","player name","fame","decks used","medals_per_deck"]].to_dict("records")
+
+
 if __name__ == "__main__":
     print("\n  Mobile Dashboard → http://localhost:8051\n")
-    app.run(debug=False, host="0.0.0.0", port=8051)
+    app.run(debug=False, port=8051)
